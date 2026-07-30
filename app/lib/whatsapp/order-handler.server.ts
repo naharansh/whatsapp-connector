@@ -47,7 +47,7 @@ function getField(payload: OrderPayload, field: string): string {
     case "currency":
       return payload.currency ?? "USD";
     case "total_with_currency":
-      return payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "";
+      return payload.total_price ? `${payload.total_price} ${payload.currency ?? "USD"}` : "0.00 USD";
     case "billing_phone":
       return payload.billing_address?.phone ?? "";
     case "shipping_phone":

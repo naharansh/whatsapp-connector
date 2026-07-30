@@ -92,7 +92,7 @@ export async function sendTriggerMessage(
 
     const variableEntries = Object.entries(variables).sort(
       (a, b) => Number(a[0]) - Number(b[0])
-    );
+    ).map(([key, val]) => [key, val || "-"] as [string, string]);
 
     const components: Array<{
       type: "header" | "body";
