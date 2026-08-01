@@ -28,15 +28,29 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
     return { templates: [], triggers: [], error: null, configured: false, wabaName: null };
   }
 
-  const wabaCheck = await verifyWabaId(config);
+  const wabaCheck = await verifyWabaId(config).catch((e: Error) => {
+    return { valid: false, name: undefined, error: e.message };
+  });
   if (!wabaCheck.valid) {
     return { templates: [], triggers: [], error: wabaCheck.error ?? "Invalid WABA ID", configured: true, wabaName: null };
   }
 
-  const [templates, triggers] = await Promise.all([
-    getTemplates(config).catch((e: Error) => { throw e; }),
-    getTriggers(shop),
-  ]);
+  let templates: WhatsAppTemplate[];
+  let triggers: TriggerData[];
+  try {
+    [templates, triggers] = await Promise.all([
+      getTemplates(config),
+      getTriggers(shop),
+    ]);
+  } catch (e) {
+    return {
+      templates: [],
+      triggers: [],
+      error: e instanceof Error ? e.message : "Failed to load templates",
+      configured: true,
+      wabaName: wabaCheck.name ?? null,
+    };
+  }
 
   for (const t of templates) {
     if (t.status === "APPROVED") {

@@ -22,6 +22,11 @@ const shopify = shopifyApp({
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
+    
+});
+console.log({
+  SHOPIFY_APP_URL: process.env.SHOPIFY_APP_URL,
+  SHOPIFY_API_KEY: process.env.SHOPIFY_API_KEY,
 });
 
 export default shopify;

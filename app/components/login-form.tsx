@@ -3,8 +3,7 @@ import type { CSSProperties, FormEvent } from "react";
 import { useNavigate } from "react-router";
 import Swal from "sweetalert2";
 
-const LOGIN_URL =
-  import.meta.env.VITE_CONNECTOR_LOGIN_URL || "https://testerp.yuvmedia.com/api/connector/login";
+const LOGIN_URL = "/api/connector/login";
 
 export function LoginForm() {
   const [username, setUsername] = useState("");
@@ -28,11 +27,11 @@ export function LoginForm() {
       });
 
       if (response.ok) {
-        navigate("/app/whatsapp");
+        navigate(`/app/whatsapp${window.location.search}`);
         return;
       }
 
-      let message = `Login failed (${response.status}).`;
+      let message = "";
       try {
         const body = await response.json();
         if (body?.error) {
@@ -40,6 +39,13 @@ export function LoginForm() {
         }
       } catch {
         // response body is not JSON, keep the status message
+      }
+
+      if (!message) {
+        message = `Login failed (${response.status}).`;
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          message = `Login server is temporarily unavailable (${response.status}). Please try again.`;
+        }
       }
       Swal.fire({
         icon: "error",
