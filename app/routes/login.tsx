@@ -12,22 +12,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { shop: session.shop };
 };
 
-export default function AppIndex() {
+export default function Login() {
   const { shop } = useLoaderData<typeof loader>();
 
   return (
-    <s-page heading="Login">
-      <div style={wrapperStyle}>
-        <AuthCard shop={shop} />
-      </div>
-    </s-page>
+    <div style={pageStyle}>
+      <AuthCard shop={shop} />
+    </div>
   );
 }
 
-const wrapperStyle: CSSProperties = {
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
   display: "flex",
+  alignItems: "center",
   justifyContent: "center",
-  padding: "32px 0",
+  background: "#f3f6f8",
+  padding: "16px",
 };
 
 export const headers: HeadersFunction = (headersArgs) => {

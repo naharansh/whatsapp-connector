@@ -2,7 +2,7 @@
 
 client_id = "975b706d9eb732c814bdca92b1514811"
 name = "whatsapp_connector"
-application_url = "https://example.com"
+application_url = "https://cherry-king-characteristics-march.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -61,7 +61,7 @@ api_version = "2026-10"
   topics = [ "refunds/create" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://cherry-king-characteristics-march.trycloudflare.com/api/auth" ]
 
 [build]
 include_config_on_deploy = true

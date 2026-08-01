@@ -33,6 +33,17 @@ model Session {
   refreshTokenExpires DateTime?
 }
 
+model AppUser {
+  id           String   @id @default(uuid())
+  shop         String
+  email        String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shop, email])
+}
+
 model WhatsAppConfig {
   id                  String   @id @default(uuid())
   shop                String   @unique
