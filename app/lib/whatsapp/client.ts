@@ -40,10 +40,16 @@ type WhatsAppErrorResponse = {
   };
 };
 
+const API_TIMEOUT_MS = 15000;
+
+function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+}
+
 function sendMessage(config: WhatsAppConfigData, message: WhatsAppMessage): Promise<WhatsAppApiResponse> {
   const url = `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`;
 
-  return fetch(url, {
+  return apiFetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.accessToken}`,
@@ -146,7 +152,7 @@ export type WhatsAppTemplatesResponse = {
 export async function verifyWabaId(config: WhatsAppConfigData): Promise<{ valid: boolean; name?: string; error?: string }> {
   const url = `https://graph.facebook.com/${config.apiVersion}/${config.businessAccountId}?fields=name`;
 
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     headers: { Authorization: `Bearer ${config.accessToken}` },
   });
 
@@ -164,7 +170,7 @@ export async function verifyWabaId(config: WhatsAppConfigData): Promise<{ valid:
 
 async function apiGet<T>(config: WhatsAppConfigData, path: string): Promise<T> {
   const url = `https://graph.facebook.com/${config.apiVersion}/${path}`;
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     headers: { Authorization: `Bearer ${config.accessToken}` },
   });
 

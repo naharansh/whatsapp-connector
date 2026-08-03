@@ -1,7 +1,7 @@
 import prisma from "../../db.server";
 import { getWhatsAppConfig, configFromEnv } from "./db-config.server";
 import { createWhatsAppClient, getTemplateStructure } from "./client";
-import { DEFAULT_MAPPING } from "./trigger-types";
+import { friendlyWhatsAppError } from "./errors";
 import type { TriggerData } from "./trigger-types";
 
 export async function getTriggers(shop: string): Promise<TriggerData[]> {
@@ -56,7 +56,8 @@ async function setTriggerError(shop: string, triggerEvent: string, error: string
       where: { shop_triggerEvent: { shop, triggerEvent } },
       data: { lastError: error, lastErrorAt: error ? new Date() : null },
     });
-  } catch {
+  } catch (err) {
+    console.error("[setTriggerError] Failed to persist trigger error:", err);
   }
 }
 
@@ -103,7 +104,7 @@ export async function sendTriggerMessage(
       const headerParams = variableEntries.slice(0, structure.headerVariableCount);
       components.push({
         type: "header",
-        parameters: headerParams.map(([_, val]) => ({ type: "text" as const, text: val })),
+        parameters: headerParams.map(([, val]) => ({ type: "text" as const, text: val })),
       });
     }
 
@@ -114,7 +115,7 @@ export async function sendTriggerMessage(
       );
       components.push({
         type: "body",
-        parameters: bodyParams.map(([_, val]) => ({ type: "text" as const, text: val })),
+        parameters: bodyParams.map(([, val]) => ({ type: "text" as const, text: val })),
       });
     }
 
@@ -133,14 +134,7 @@ export async function sendTriggerMessage(
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error(`[sendTriggerMessage] Failed: ${msg}`);
 
-    let friendly: string;
-    if (msg.includes("131005")) {
-      friendly = "Customer has not opted in. They must send a message to your WhatsApp Business number first.";
-    } else if (msg.includes("132001")) {
-      friendly = "Template not found for the selected language. Check the language code matches the template.";
-    } else {
-      friendly = msg;
-    }
+    const friendly = friendlyWhatsAppError(msg);
     await setTriggerError(shop, triggerEvent, friendly);
     return { sent: false, error: friendly };
   }

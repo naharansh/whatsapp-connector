@@ -4,8 +4,10 @@ import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "re
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { getWhatsAppConfig, saveWhatsAppConfig, configFromEnv } from "../lib/whatsapp/db-config.server";
-import { createWhatsAppClient } from "../lib/whatsapp/client";
+import { getWhatsAppConfig, saveWhatsAppConfig, configFromEnv, normalizeApiVersion } from "../lib/whatsapp/db-config.server";
+import { createWhatsAppClient, verifyWabaId, getTemplates } from "../lib/whatsapp/client";
+import { friendlyWhatsAppError } from "../lib/whatsapp/errors";
+import { normalizePhoneNumber } from "../lib/whatsapp/phone";
 import { getSetupSteps } from "../lib/whatsapp/setup";
 import type { WhatsAppConfigData } from "../lib/whatsapp/db-config.server";
 
@@ -40,7 +42,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const data: WhatsAppConfigData = {
       phoneNumberId: formData.get("phoneNumberId") as string,
       accessToken: formData.get("accessToken") as string,
-      apiVersion: (formData.get("apiVersion") as string) || "v22.0",
+      apiVersion: normalizeApiVersion((formData.get("apiVersion") as string) || "v25.0"),
       businessAccountId: formData.get("businessAccountId") as string,
       webhookVerifyToken: formData.get("webhookVerifyToken") as string,
       webhookSecret: (formData.get("webhookSecret") as string) || undefined,
@@ -53,30 +55,56 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!data.webhookVerifyToken) fieldErrors.webhookVerifyToken = "Webhook Verify Token is required";
 
     if (Object.keys(fieldErrors).length > 0) {
-      return { ok: false, fieldErrors };
+      return { ok: false, intent: "save", fieldErrors };
     }
 
     await saveWhatsAppConfig(shop, data);
-    return { ok: true };
+    return { ok: true, intent: "save" };
+  }
+
+  if (intent === "templates") {
+    const config = (await getWhatsAppConfig(shop)) ?? configFromEnv();
+    if (!config) {
+      return { ok: true, intent: "templates", templates: [] };
+    }
+    try {
+      const all = await getTemplates(config);
+      const templates = all
+        .filter((t) => t.status === "APPROVED")
+        .map((t) => ({ name: t.name, language: t.language }));
+      return { ok: true, intent: "templates", templates };
+    } catch (err) {
+      console.error("[whatsapp] Failed to load templates:", err);
+      return { ok: true, intent: "templates", templates: [] };
+    }
   }
 
   if (intent === "test") {
     const config = (await getWhatsAppConfig(shop)) ?? configFromEnv();
     if (!config) {
-      return { ok: false, error: "No WhatsApp configuration found" };
+      return { ok: false, intent: "test", error: "No WhatsApp configuration found" };
     }
 
-    const phone = formData.get("phone") as string;
+    const phone = normalizePhoneNumber((formData.get("phone") as string) || "");
     if (!phone) {
-      return { ok: false, fieldErrors: { phone: "Phone number is required" } };
+      return { ok: false, intent: "test", fieldErrors: { phone: "Enter a valid phone number" } };
     }
+
+    const templateName = (formData.get("templateName") as string) || "hello_world";
+    const languageCode = (formData.get("languageCode") as string) || "en_US";
 
     try {
+      const verification = await verifyWabaId(config);
+      if (!verification.valid) {
+        return { ok: false, intent: "test", error: verification.error };
+      }
+
       const client = createWhatsAppClient(config);
-      const result = await client.sendText(phone, "WhatsApp is connected \u2705");
-      return { ok: true, messageId: result.messages[0]?.id };
+      const result = await client.sendTemplate(phone, templateName, languageCode);
+      return { ok: true, intent: "test", messageId: result.messages[0]?.id };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      return { ok: false, intent: "test", error: friendlyWhatsAppError(msg) };
     }
   }
 
@@ -88,6 +116,8 @@ type ActionResult = {
   error?: string;
   fieldErrors?: Record<string, string>;
   messageId?: string;
+  intent?: string;
+  templates?: Array<{ name: string; language: string }>;
 };
 
 function Field({
@@ -153,23 +183,52 @@ function StatusPill({ config, envConfig }: { config: WhatsAppConfigData | null; 
 export default function WhatsAppPage() {
   const { config, envConfig, steps, appUrl } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const templatesFetcher = useFetcher();
+  const [pendingIntent, setPendingIntent] = useState<"save" | "test" | null>(null);
   const isLoading = fetcher.state !== "idle";
   const result = fetcher.data as ActionResult | undefined;
   const existing = config ?? envConfig;
 
+  const saving = pendingIntent === "save";
+  const testing = pendingIntent === "test";
+  const busy = saving || testing;
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (result?.ok && !result?.messageId && !isLoading) {
+    if (result?.ok && result?.intent === "save" && !result?.messageId && !isLoading) {
       navigate(`/app/whatsapp/templates${window.location.search}`);
     }
   }, [result, isLoading, navigate]);
 
+  useEffect(() => {
+    if (pendingIntent && fetcher.state === "idle") {
+      setPendingIntent(null);
+    }
+  }, [pendingIntent, fetcher.state]);
+
   const [copied, setCopied] = useState(false);
+  const [templates, setTemplates] = useState<Array<{ name: string; language: string }>>([]);
+
+  useEffect(() => {
+    if (existing) {
+      const formData = new FormData();
+      formData.set("intent", "templates");
+      templatesFetcher.submit(formData, { method: "POST" });
+    }
+  }, [existing, templatesFetcher]);
+
+  useEffect(() => {
+    const templatesResult = templatesFetcher.data as ActionResult | undefined;
+    if (templatesResult?.intent === "templates" && templatesResult.templates) {
+      setTemplates(templatesResult.templates);
+    }
+  }, [templatesFetcher.data]);
 
   const webhookUrl = `${appUrl || ""}/webhooks/whatsapp`;
 
   const handleSave = () => {
+    setPendingIntent("save");
     const form = document.getElementById("whatsapp-config-form") as HTMLFormElement;
     if (form) {
       fetcher.submit(new FormData(form), { method: "POST" });
@@ -177,6 +236,7 @@ export default function WhatsAppPage() {
   };
 
   const handleTest = () => {
+    setPendingIntent("test");
     const form = document.getElementById("whatsapp-test-form") as HTMLFormElement;
     if (form) {
       fetcher.submit(new FormData(form), { method: "POST" });
@@ -215,7 +275,7 @@ export default function WhatsAppPage() {
             <Field label="Phone Number ID" error={result?.fieldErrors?.phoneNumberId}>
               <input
                 name="phoneNumberId"
-                defaultValue={existing?.phoneNumberId ?? ""}
+                defaultValue=""
                 placeholder="From WhatsApp Business Account"
                 required
                 style={inputStyle}
@@ -225,7 +285,7 @@ export default function WhatsAppPage() {
             <Field label="Access Token" hint="Permanent system user token" error={result?.fieldErrors?.accessToken}>
               <input
                 name="accessToken"
-                defaultValue={existing?.accessToken ?? ""}
+                defaultValue=""
                 placeholder="Paste your permanent token"
                 type="password"
                 autoComplete="off"
@@ -238,15 +298,15 @@ export default function WhatsAppPage() {
               <Field label="API Version" style={{ flex: 1 }}>
                 <input
                   name="apiVersion"
-                  defaultValue={existing?.apiVersion ?? "v22.0"}
-                  placeholder="v22.0"
+                  defaultValue="v25.0"
+                  placeholder="v25.0"
                   style={inputStyleWith()}
                 />
               </Field>
               <Field label="Business Account ID (WABA)" error={result?.fieldErrors?.businessAccountId} style={{ flex: 1.6 }}>
                 <input
                   name="businessAccountId"
-                  defaultValue={existing?.businessAccountId ?? ""}
+                  defaultValue=""
                   placeholder="WABA ID"
                   required
                   style={inputStyleWith()}
@@ -257,7 +317,7 @@ export default function WhatsAppPage() {
             <Field label="Webhook Verify Token" hint="Custom token for webhook verification" error={result?.fieldErrors?.webhookVerifyToken}>
               <input
                 name="webhookVerifyToken"
-                defaultValue={existing?.webhookVerifyToken ?? ""}
+                defaultValue=""
                 placeholder="Set the same token in your Meta App Dashboard"
                 required
                 style={inputStyle}
@@ -267,7 +327,7 @@ export default function WhatsAppPage() {
             <Field label="Webhook Secret" hint="App secret for payload verification (optional)">
               <input
                 name="webhookSecret"
-                defaultValue={existing?.webhookSecret ?? ""}
+                defaultValue=""
                 placeholder="App secret for payload verification"
                 type="password"
                 autoComplete="off"
@@ -275,21 +335,21 @@ export default function WhatsAppPage() {
               />
             </Field>
 
-            <button type="button" onClick={handleSave} disabled={isLoading} style={isLoading ? { ...saveButtonStyle, opacity: 0.7 } : saveButtonStyle}>
-              {isLoading ? "Saving..." : config ? "Update Configuration" : "Save Configuration"}
+            <button type="button" onClick={handleSave} disabled={busy} style={busy ? { ...saveButtonStyle, opacity: 0.7 } : saveButtonStyle}>
+              {saving ? "Saving..." : config ? "Update Configuration" : "Save Configuration"}
             </button>
 
-            {result?.ok && !result.messageId && (
+            {result?.ok && result?.intent === "save" && (
               <div style={successMessageStyle}>Configuration saved successfully.</div>
             )}
-            {result?.error && !result.fieldErrors && (
+            {result?.error && result?.intent === "save" && !result.fieldErrors && (
               <div style={errorStyle}>{result.error}</div>
             )}
           </form>
         </Card>
 
         {existing && (
-          <Card title="Test Connection" subtitle="Send a test message to verify your connection.">
+          <Card title="Test Connection" subtitle="Sends an approved template to verify your connection. Business-initiated templates work outside the 24-hour window.">
             <form id="whatsapp-test-form" method="POST">
               <input type="hidden" name="intent" value="test" />
               <div style={testRowStyle}>
@@ -301,20 +361,40 @@ export default function WhatsAppPage() {
                     placeholder="e.g. 15551234567"
                     style={inputStyleWith({ marginTop: "6px" })}
                   />
-                  {result?.fieldErrors?.phone && (
+                  <label style={{ ...labelStyle, marginTop: "12px" }} htmlFor="whatsapp-test-template">Template</label>
+                  <select id="whatsapp-test-template" name="templateName" defaultValue="hello_world" style={inputStyleWith({ marginTop: "6px" })}>
+                    <option value="hello_world">hello_world (default test template)</option>
+                    {templates.map((t) => (
+                      <option key={`${t.name}-${t.language}`} value={t.name}>
+                        {t.name} ({t.language})
+                      </option>
+                    ))}
+                  </select>
+                  <label style={{ ...labelStyle, marginTop: "12px" }} htmlFor="whatsapp-test-language">Language code</label>
+                  <input
+                    id="whatsapp-test-language"
+                    name="languageCode"
+                    defaultValue="en_US"
+                    placeholder="en_US"
+                    style={inputStyleWith({ marginTop: "6px" })}
+                  />
+                  {result?.intent === "test" && result?.fieldErrors?.phone && (
                     <div style={{ ...errorStyle, marginTop: "6px" }}>{result.fieldErrors.phone}</div>
                   )}
-                  {result?.error && (
+                  {result?.intent === "test" && result?.error && (
                     <div style={{ ...errorStyle, marginTop: "6px" }}>{result.error}</div>
                   )}
                 </div>
-                <button type="button" onClick={handleTest} disabled={isLoading} style={isLoading ? { ...secondaryButtonStyle, opacity: 0.7 } : secondaryButtonStyle}>
-                  {isLoading ? "Sending..." : "Send test"}
+                <button type="button" onClick={handleTest} disabled={busy} style={busy ? { ...secondaryButtonStyle, opacity: 0.7 } : secondaryButtonStyle}>
+                  {testing ? "Sending..." : "Send test"}
                 </button>
               </div>
-              {result?.messageId && (
+              {result?.intent === "test" && result?.messageId && (
                 <div style={successMessageStyle}>Test message sent! ID: {result.messageId}</div>
               )}
+              <div style={hintStyle}>
+                If no message arrives, the Meta app must be in Live mode (business verification + Live mode); the testing API silently drops deliveries.
+              </div>
             </form>
           </Card>
         )}

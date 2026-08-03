@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { useNavigate } from "react-router";
 import Swal from "sweetalert2";
 
 const LOGIN_URL = "/api/connector/login";
@@ -9,7 +8,6 @@ export function LoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const navigate = useNavigate();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,7 +25,7 @@ export function LoginForm() {
       });
 
       if (response.ok) {
-        navigate(`/app/whatsapp${window.location.search}`);
+        window.location.assign(`/app/whatsapp${window.location.search}`);
         return;
       }
 

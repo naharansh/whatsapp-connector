@@ -1,5 +1,10 @@
 import prisma from "../../db.server";
 
+export function normalizeApiVersion(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.startsWith("v") ? trimmed : `v${trimmed}`;
+}
+
 export type WhatsAppConfigData = {
   phoneNumberId: string;
   accessToken: string;
@@ -52,7 +57,7 @@ export function configFromEnv(): WhatsAppConfigData | null {
   return {
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN!,
-    apiVersion: process.env.WHATSAPP_API_VERSION || "v22.0",
+    apiVersion: normalizeApiVersion(process.env.WHATSAPP_API_VERSION || "v25.0"),
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID!,
     webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!,
     webhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET,

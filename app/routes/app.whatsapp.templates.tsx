@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
+import Swal from "sweetalert2";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -7,6 +8,7 @@ import { getWhatsAppConfig, configFromEnv } from "../lib/whatsapp/db-config.serv
 import { getTemplates, getTemplateStructure, verifyWabaId } from "../lib/whatsapp/client";
 import { getTriggers, saveTrigger } from "../lib/whatsapp/triggers.server";
 import { TRIGGER_EVENTS } from "../lib/whatsapp/trigger-types";
+import { LogoutButton } from "../components/logout-button";
 import type { WhatsAppTemplate } from "../lib/whatsapp/client";
 import type { TriggerData } from "../lib/whatsapp/trigger-types";
 import { ORDER_FIELDS, DEFAULT_MAPPING } from "../lib/whatsapp/trigger-types";
@@ -219,7 +221,7 @@ function TriggerRow({ event, templates, trigger }: { event: typeof TRIGGER_EVENT
 
   useEffect(() => {
     if (fetcher.data?.ok && !saving) {
-      alert("Saved");
+      Swal.fire({ icon: "success", title: "Saved", timer: 1500, showConfirmButton: false });
     }
   }, [fetcher.data, saving]);
 
@@ -243,7 +245,11 @@ function TriggerRow({ event, templates, trigger }: { event: typeof TRIGGER_EVENT
     const selected = approved.find((t) => t.name === name);
     const nonTextHeaders = ["IMAGE", "VIDEO", "DOCUMENT"] as const;
     if (selected?.headerFormat && (nonTextHeaders as readonly string[]).includes(selected.headerFormat)) {
-      alert(`Template "${name}" has a ${selected.headerFormat.toLowerCase()} header. Only text headers are supported for sending WhatsApp messages.`);
+      Swal.fire({
+        icon: "warning",
+        title: "Unsupported header",
+        text: `Template "${name}" has a ${selected.headerFormat.toLowerCase()} header. Only text headers are supported for sending WhatsApp messages.`,
+      });
       setSelectedTemplate("");
       setPlaceholders([]);
       setMapping({});
@@ -401,6 +407,9 @@ export default function TemplatesPage() {
 
   return (
     <s-page heading="Templates">
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <LogoutButton />
+      </div>
       <div style={{ padding: "12px 16px", backgroundColor: "#fff4e5", borderRadius: "8px", border: "1px solid #ffc107", marginBottom: "16px", fontSize: "13px", color: "#663c00" }}>
         <strong style={{ display: "block", marginBottom: "4px" }}>Template header limitation</strong>
         WhatsApp templates with media headers (IMAGE, VIDEO, DOCUMENT) cannot be used for sending messages.

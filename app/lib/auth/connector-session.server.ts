@@ -46,6 +46,17 @@ export function clearConnectorToken(): string {
   });
 }
 
+export function expireCookie(name: string): string {
+  const parts = [`${name}=`];
+  parts.push(`Max-Age=0`);
+  parts.push(`Expires=Thu, 01 Jan 1970 00:00:00 GMT`);
+  parts.push(`Path=/`);
+  parts.push(`HttpOnly`);
+  parts.push(`Secure`);
+  parts.push(`SameSite=None`);
+  return parts.join("; ");
+}
+
 function serializeCookie(name: string, value: string, options: CookieOptions): string {
   const parts = [`${name}=${encodeURIComponent(value)}`];
   parts.push(`Max-Age=${options.maxAge}`);

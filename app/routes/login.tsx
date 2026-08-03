@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { redirect, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
 import { clearConnectorToken, getConnectorToken } from "../lib/auth/connector-session.server";
@@ -25,16 +26,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app/whatsapp?${url.searchParams.toString()}`);
   }
 
-  return { shop: session.shop };
+  // eslint-disable-next-line no-undef
+  return { shop: session.shop, apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
 export default function Login() {
-  const { shop } = useLoaderData<typeof loader>();
+  const { shop, apiKey } = useLoaderData<typeof loader>();
 
   return (
-    <div style={pageStyle}>
-      <AuthCard shop={shop} />
-    </div>
+    <AppProvider embedded apiKey={apiKey}>
+      <div style={pageStyle}>
+        <AuthCard shop={shop} />
+      </div>
+    </AppProvider>
   );
 }
 

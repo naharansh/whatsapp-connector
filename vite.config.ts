@@ -37,6 +37,10 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
+    // The Shopify CLI proxy forwards to 127.0.0.1, so bind to IPv4 loopback.
+    // Binding to the default "localhost" can resolve to ::1 on Windows only,
+    // leaving the proxy unable to connect (ECONNREFUSED).
+    host: "127.0.0.1",
     allowedHosts: [host],
     cors: {
       preflightContinue: true,

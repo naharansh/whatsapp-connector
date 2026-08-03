@@ -21,7 +21,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
     event.preventDefault();
 
     if (!name || !username || !password) {
-      alert("Enter your name, platform username and password.");
+      Swal.fire({ icon: "warning", title: "Missing details", text: "Enter your name, platform username and password." });
       return;
     }
 
@@ -52,9 +52,9 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
       } catch {
         // response body is not JSON, keep the status message
       }
-      alert(message);
+      Swal.fire({ icon: "error", title: "Sign up failed", text: message });
     } catch {
-      alert("Could not reach the signup server.");
+      Swal.fire({ icon: "error", title: "Connection error", text: "Could not reach the signup server." });
     } finally {
       setIsSubmitting(false);
     }

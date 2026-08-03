@@ -49,7 +49,7 @@ model WhatsAppConfig {
   shop                String   @unique
   phoneNumberId       String
   accessToken         String
-  apiVersion          String   @default("v22.0")
+  apiVersion          String   @default("v25.0")
   businessAccountId   String
   webhookVerifyToken  String
   webhookSecret       String?
