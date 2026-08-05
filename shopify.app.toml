@@ -2,7 +2,7 @@
 
 client_id = "975b706d9eb732c814bdca92b1514811"
 name = "whatsapp_connector"
-application_url = "https://float-lion-encouraging-translations.trycloudflare.com"
+application_url = "https://whatsapp-connector-o63l.onrender.com"
 embedded = true
 
 [build]
@@ -16,14 +16,6 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/orders/cancelled"
-  topics = [ "orders/cancelled" ]
-
-  [[webhooks.subscriptions]]
   uri = "/webhooks/orders/create"
   topics = [ "orders/create" ]
 
@@ -32,15 +24,26 @@ api_version = "2026-10"
   topics = [ "orders/fulfilled" ]
 
   [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/cancelled"
+  topics = [ "orders/cancelled" ]
+
+  [[webhooks.subscriptions]]
   uri = "/webhooks/refunds/create"
   topics = [ "refunds/create" ]
 
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_metaobjects,write_metaobject_definitions,read_orders"
+scopes = "read_orders,write_metaobject_definitions,write_metaobjects,write_products"
 
 [auth]
-redirect_urls = [ "https://float-lion-encouraging-translations.trycloudflare.com/auth" ]
+redirect_urls = [
+  "https://whatsapp-connector-o63l.onrender.com/auth/callback",
+  "https://whatsapp-connector-o63l.onrender.com/auth/shopify/callback"
+]
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"
